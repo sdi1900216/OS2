@@ -206,7 +206,7 @@ void pm_process(char* trace_file, int pmid, long max_refs, int q, sem_t* empty, 
 
     while(max_refs==-1 || refs<max_refs) {
         int sent=0;
-        while(sent<q && (max_refs==-1 || refs<max_refs) && fgets(line,sizeof(line),f)) {
+        while(sent<q && (max_refs== -1 || refs < max_refs) && fgets(line,sizeof(line),f)) {
             unsigned long addr;
             char op;
 
@@ -241,7 +241,7 @@ void pm_process(char* trace_file, int pmid, long max_refs, int q, sem_t* empty, 
         sem_post(mutex);
         sem_post(full);
 
-        printf("PM%d completed batch %lu\n", pmid, (refs+q-1)/q);
+        //printf("PM%d completed batch %lu\n", pmid, (refs+q-1)/q);
         fflush(stdout);
     }
 
@@ -300,7 +300,7 @@ int main(int argc,char* argv[]){
     init_proc(&p1, total_frames/2);
     init_proc(&p2,total_frames/2);
  
-    // --- Shared memory ---
+    //shared memory 
     int shm_fd1 = shm_open("/shm_queue_pm1",O_CREAT|O_RDWR,0666);
     int shm_fd2 = shm_open("/shm_queue_pm2",O_CREAT|O_RDWR,0666);
     if(shm_fd1<0 || shm_fd2<0) {
@@ -312,14 +312,14 @@ int main(int argc,char* argv[]){
         exit(1);
     }
 
-    SharedQueue* queue1 = mmap(0,sizeof(SharedQueue), PROT_READ| PROT_WRITE, MAP_SHARED,shm_fd1, 0);
-    SharedQueue* queue2 = mmap(0,sizeof(SharedQueue), PROT_READ| PROT_WRITE, MAP_SHARED,shm_fd2, 0);
+    SharedQueue* queue1 = mmap(0,sizeof(SharedQueue), PROT_READ| PROT_WRITE, MAP_SHARED,shm_fd1, 0); // queue for PM1
+    SharedQueue* queue2 = mmap(0,sizeof(SharedQueue), PROT_READ| PROT_WRITE, MAP_SHARED,shm_fd2, 0); // queue for PM2
 
     if(queue1==MAP_FAILED || queue2==MAP_FAILED){ perror("mmap"); exit(1); }
     queue1->head = queue1->tail = 0;
     queue2->head = queue2->tail = 0;
 
-    // --- Semaphores ---
+    //semaphores 
     sem_t* empty1 = sem_open("/sem_empty1", O_CREAT,0666, MAX_QUEUE);
     sem_t* full1  = sem_open("/sem_full1", O_CREAT,0666, 0);
     sem_t* mutex1 = sem_open("/sem_mutex1", O_CREAT,0666, 1);
@@ -379,11 +379,11 @@ int main(int argc,char* argv[]){
                 sem_post(mutex2);
                 sem_post(empty2);
 
-                if(r.op=='E') {
+                if(r.op=='E') { //E is a termination request
                     finished2=1;
                     break;
                 }
-                if(r.op=='B') {
+                if(r.op=='B') { // stands for'batch end" marker
                     done_batch=1;
                     p2.batches++;
                     p2.block_pf = 0;
@@ -396,7 +396,7 @@ int main(int argc,char* argv[]){
         }
     }
 
-    wait(NULL);
+    wait(NULL); //parent waits for both pM proecesses to finish 
     wait(NULL);
 
     printf("\n=========== Final Statistics ============\n");
@@ -415,7 +415,7 @@ int main(int argc,char* argv[]){
     printf(" - Total Disk Reads:   %lu\n", tot_rd);
     printf(" - Total Disk Writes:  %lu\n", tot_wr);
     printf(" - Overall Fault Rate: %.2f%%\n", fault_rate);
-    printf("==========================================\n\n");
+    printf("========================================\n\n");
 
     sem_unlink("/sem_empty1");
     sem_unlink("/sem_full1");
